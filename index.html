@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <title>Alfa Holdback Signing</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #edf2f0;
+      --surface: #ffffff;
+      --surface-2: #f5f8f7;
+      --ink: #17221e;
+      --muted: #52625b;
+      --line: #ccd7d2;
+      --accent: #b92730;
+      --accent-dark: #8e1d25;
+      --green: #176c49;
+      --green-bg: #e4f4eb;
+      --error: #9c2830;
+      --error-bg: #fae8e9;
+      --shadow: 0 18px 55px rgba(25, 43, 36, .12);
+      --focus: #0b6b8c;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121916;
+        --surface: #1d2723;
+        --surface-2: #25312c;
+        --ink: #edf4f1;
+        --muted: #b5c2bc;
+        --line: #3c4b45;
+        --accent: #e35b63;
+        --accent-dark: #ca434c;
+        --green: #7bd2a9;
+        --green-bg: #17392b;
+        --error: #ff9fa5;
+        --error-bg: #422428;
+        --shadow: 0 20px 65px rgba(0,0,0,.34);
+        --focus: #65c8e6;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--bg); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+    button, input { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+    :focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 50%, transparent); outline-offset: 3px; }
+
+    .shell {
+      width: min(100%, 860px);
+      margin: 0 auto;
+      padding: clamp(20px, 4vw, 40px) clamp(12px, 3vw, 24px) 52px;
+    }
+    .intro { margin: 0 0 18px; }
+    .intro h1 {
+      margin: 0 0 6px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(28px, 6vw, 40px);
+      line-height: 1.08;
+      letter-spacing: -.02em;
+      font-weight: 700;
+    }
+    .intro p { margin: 0; color: var(--muted); font-size: 16px; }
+
+    /* ---- The Alfa form sheets: fixed 816x1056 letter canvas ---- */
+    .sheet-wrap { position: relative; width: 100%; margin: 0 auto 18px; }
+    .sheet {
+      position: relative;
+      width: 816px;
+      height: 1056px;
+      background: #fff;
+      color: #000;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+      box-shadow: 0 10px 34px rgba(25, 43, 36, .18);
+      transform-origin: top left;
+    }
+    #pdfStage .sheet { box-shadow: none; }
+    .sheet .el { position: absolute; white-space: nowrap; }
+    .hdr-title { font-family: "Times New Roman", Times, serif; font-weight: 700; font-size: 20px; }
+    .lbl { font-size: 13.33px; text-align: right; }
+    .val { font-size: 13.33px; }
+    .bold-lbl { font-family: "Times New Roman", Times, serif; font-weight: 700; font-size: 15.33px; text-align: right; }
+    .bold-val { font-family: "Times New Roman", Times, serif; font-weight: 700; font-size: 15.33px; }
+    .letter {
+      position: absolute;
+      left: 48px;
+      top: 182px;
+      width: 720px;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 14.67px;
+      line-height: 20.7px;
+      color: #000;
+    }
+    .letter p { margin: 0 0 13px; }
+    .letter p.gap-lg { margin-bottom: 19px; }
+    .letter p.bold { font-weight: 700; }
+    .sigblock { margin-top: 32px; position: relative; width: 540px; }
+    .sigzone { height: 54px; position: relative; }
+    .sigzone img { position: absolute; bottom: 2px; left: 6px; max-width: 176px; max-height: 52px; object-fit: contain; }
+    .sigzone .typed-sig {
+      position: absolute; bottom: 2px; left: 6px;
+      font-family: "Brush Script MT", "Segoe Script", cursive;
+      font-size: 40px; line-height: 1; white-space: nowrap;
+      transform-origin: left bottom;
+    }
+    .sigline { border-top: 2px solid #000; }
+    .sigzone .sigdate { position: absolute; left: 188px; bottom: 2px; font-family: Arial, Helvetica, sans-serif; font-size: 13.33px; line-height: 1.2; }
+    .siglabels { font-family: "Times New Roman", Times, serif; font-size: 13.33px; margin-top: 5px; position: relative; }
+    .siglabels .dt { position: absolute; left: 188px; }
+    .sheet-footer {
+      position: absolute; bottom: 53px; left: 48px; right: 36px;
+      font-family: Arial, Helvetica, sans-serif; font-size: 12px;
+      display: flex; justify-content: space-between;
+    }
+
+    /* ---- Signing controls ---- */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: 18px;
+      padding: 24px;
+      margin-top: 6px;
+    }
+    .section-title { margin: 0 0 6px; font-size: 22px; line-height: 1.25; }
+    .affidavit { margin: 0 0 18px; color: var(--muted); font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 15px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+    .tab {
+      min-width: 92px; padding: 10px 16px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: var(--surface-2); color: var(--ink);
+      font-weight: 800; cursor: pointer;
+    }
+    .tab[aria-selected="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+    .sig-box {
+      width: 100%; min-height: 132px; padding: 18px;
+      border: 2px dashed var(--line); border-radius: 12px;
+      background: var(--surface-2);
+      display: grid; place-items: center;
+      cursor: pointer; color: var(--muted); text-align: center;
+    }
+    .sig-box:hover { border-color: var(--accent); }
+    .sig-box img { max-width: 100%; height: 88px; object-fit: contain; }
+    .draw-prompt strong { display: block; color: var(--ink); font-size: 17px; margin-bottom: 4px; }
+    .type-panel { display: none; }
+    .type-panel.active, .draw-panel.active { display: block; }
+    .draw-panel:not(.active) { display: none; }
+    .field-label { display: block; margin-bottom: 7px; font-weight: 800; }
+    .text-input, .date-input {
+      width: 100%; min-height: 50px;
+      border: 1px solid var(--line); border-radius: 10px;
+      background: var(--surface); color: var(--ink);
+      padding: 11px 13px;
+    }
+    .typed-preview {
+      min-height: 102px; margin-top: 10px;
+      border-bottom: 1px solid var(--ink);
+      display: flex; align-items: flex-end; justify-content: center;
+      padding: 12px 10px 7px;
+      color: var(--ink);
+      font-family: "Brush Script MT", "Segoe Script", cursive;
+      font-size: clamp(34px, 9vw, 52px); line-height: 1;
+      overflow-wrap: anywhere; text-align: center;
+    }
+    .details-grid { display: grid; grid-template-columns: 1fr 180px; gap: 16px; margin-top: 22px; }
+    .printed {
+      min-height: 50px; display: flex; align-items: center;
+      padding: 11px 13px;
+      border: 1px solid var(--line); border-radius: 10px;
+      background: var(--surface-2); font-weight: 700;
+    }
+    .consent {
+      display: grid; grid-template-columns: 23px 1fr; gap: 12px; align-items: start;
+      margin: 22px 0 0; padding: 16px;
+      border: 1px solid var(--line); border-radius: 12px;
+      background: var(--surface-2); cursor: pointer;
+    }
+    .consent input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--accent); }
+    .consent span { font-size: 14px; line-height: 1.48; }
+    .validation { min-height: 23px; margin: 10px 0 0; color: var(--error); font-size: 14px; font-weight: 700; }
+    .send-btn {
+      width: 100%; min-height: 56px; margin-top: 8px;
+      border: 0; border-radius: 12px;
+      background: var(--accent); color: #fff;
+      font-weight: 850; font-size: 17px; cursor: pointer;
+      box-shadow: 0 8px 20px rgba(185,39,48,.22);
+    }
+    .send-btn:hover { background: var(--accent-dark); }
+    .send-btn:disabled { cursor: wait; opacity: .66; box-shadow: none; }
+    .status { display: none; margin-top: 16px; padding: 15px 16px; border-radius: 10px; font-weight: 750; }
+    .status.show { display: block; }
+    .status.success { color: var(--green); background: var(--green-bg); }
+    .status.failure { color: var(--error); background: var(--error-bg); }
+    .security-note { margin: 14px 2px 0; color: var(--muted); text-align: center; font-size: 12px; }
+
+    .link-error {
+      display: none; max-width: 600px; margin: 14vh auto 0; padding: 28px;
+      background: var(--surface); border: 1px solid var(--line);
+      border-top: 5px solid var(--accent); border-radius: 16px;
+      box-shadow: var(--shadow); text-align: center;
+    }
+    .link-error h1 { margin: 0 0 9px; font-family: Georgia, "Times New Roman", serif; font-size: 29px; }
+    .link-error p { margin: 0; color: var(--muted); font-size: 17px; }
+
+    .modal {
+      position: fixed; inset: 0; z-index: 20; display: none;
+      padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+      background: rgba(8, 15, 12, .78);
+      align-items: center; justify-content: center;
+    }
+    .modal.open { display: flex; }
+    .modal-card {
+      width: min(940px, 100%); max-height: 96vh;
+      background: var(--surface); border-radius: 16px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.4); overflow: hidden;
+    }
+    .modal-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+    .modal-head h2 { margin: 0; font-size: 20px; }
+    .close-btn { border: 0; background: transparent; color: var(--muted); padding: 8px; font-weight: 800; cursor: pointer; }
+    .pad-wrap { padding: 14px; background: var(--surface-2); }
+    #signaturePad {
+      display: block; width: 100%; height: min(54vh, 430px);
+      background: #fff; border: 1px solid #bfc8c3; border-radius: 8px;
+      touch-action: none; cursor: crosshair;
+    }
+    .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; padding: 14px 18px 18px; }
+    .action-btn { min-height: 46px; padding: 10px 18px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font-weight: 800; cursor: pointer; }
+    .action-btn.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+    /* Dedicated PDF stage: fixed letter canvases, unaffected by viewport. */
+    #pdfStage { position: fixed; left: -10000px; top: 0; pointer-events: none; }
+
+    @media (max-width: 590px) {
+      .details-grid { grid-template-columns: 1fr; }
+      .card { border-radius: 13px; padding: 18px; }
+      .modal-actions { justify-content: stretch; }
+      .modal-actions .action-btn { flex: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <main class="shell" id="app" hidden>
+    <section class="intro">
+      <h1>Sign Alfa's completion form</h1>
+      <p>This is Alfa's own form from your claim file, filled in with your information. Review both pages, sign at the bottom of page 2, and send it back — it goes straight to RoofLife so Alfa can release your remaining claim payment.</p>
+    </section>
+
+    <div class="sheet-wrap" id="wrap1"><div class="sheet" id="screenSheet1"></div></div>
+    <div class="sheet-wrap" id="wrap2"><div class="sheet" id="screenSheet2"></div></div>
+
+    <section class="card" aria-labelledby="signatureHeading">
+      <h2 class="section-title" id="signatureHeading">Add your signature</h2>
+      <p class="affidavit">“Your signature below is your affidavit that the work as specified in the estimate of repair or replacement has been completed.”</p>
+
+      <div class="tabs" role="tablist" aria-label="Signature method">
+        <button class="tab" id="drawTab" type="button" role="tab" aria-selected="true" aria-controls="drawPanel">Draw</button>
+        <button class="tab" id="typeTab" type="button" role="tab" aria-selected="false" aria-controls="typePanel">Type</button>
+      </div>
+
+      <div class="draw-panel active" id="drawPanel" role="tabpanel" aria-labelledby="drawTab">
+        <button class="sig-box" id="openPad" type="button" aria-label="Open signature pad">
+          <span class="draw-prompt" id="drawPrompt"><strong>Tap to sign</strong>A larger signature pad will open.</span>
+          <img id="drawnPreview" alt="Your drawn signature" hidden>
+        </button>
+      </div>
+
+      <div class="type-panel" id="typePanel" role="tabpanel" aria-labelledby="typeTab">
+        <label class="field-label" for="typedName">Type your signature</label>
+        <input class="text-input" id="typedName" autocomplete="name" inputmode="text" placeholder="Type your full name">
+        <div class="typed-preview" id="typedPreview" aria-live="polite">Your signature</div>
+      </div>
+
+      <div class="details-grid">
+        <div>
+          <span class="field-label">Printed name</span>
+          <div class="printed" id="printedName"></div>
+        </div>
+        <div>
+          <label class="field-label" for="signDate">Date</label>
+          <input class="date-input" id="signDate" type="date" required>
+        </div>
+      </div>
+
+      <label class="consent">
+        <input id="consent" type="checkbox" required>
+        <span>I confirm the work described in Alfa's estimate is complete and agree that my electronic signature may be applied to this statement</span>
+      </label>
+
+      <p class="validation" id="validation" role="alert" aria-live="assertive"></p>
+      <button class="send-btn" id="sendButton" type="button">Finish &amp; Send</button>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+      <p class="security-note">Please tap once and keep this page open until the confirmation appears.</p>
+    </section>
+  </main>
+
+  <section class="link-error" id="linkError" role="alert">
+    <h1>We need a new link</h1>
+    <p>This signing link is incomplete. Please contact RoofLife for a new link.</p>
+  </section>
+
+  <div class="modal" id="padModal" role="dialog" aria-modal="true" aria-labelledby="padTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="padTitle">Draw your signature</h2>
+        <button class="close-btn" id="closePad" type="button">Cancel</button>
+      </div>
+      <div class="pad-wrap"><canvas id="signaturePad"></canvas></div>
+      <div class="modal-actions">
+        <button class="action-btn" id="undoPad" type="button">Undo</button>
+        <button class="action-btn" id="clearPad" type="button">Clear</button>
+        <button class="action-btn primary" id="donePad" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pdfStage" aria-hidden="true">
+    <div class="sheet" id="pdfSheet1"></div>
+    <div class="sheet" id="pdfSheet2"></div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var DATA = {"person": "KENNETH D WINTER", "cell": "(808) 780-5034", "property_1": "6019 PEACH POND WAY SE", "email": "KENWINTER@GMAIL.COM", "property_2": "OWENS CROSS ROADS, AL 35763-2503", "home_1": "6019 PEACH POND WAY SE", "home_2": "OWENS CROSS ROADS, AL 35763-2503", "claim_rep": "Andrew Bedard", "claim_rep_email": "ABedard@alfains.com", "estimator": "Andrew Bedard", "estimator_email": "ABedard@alfains.com", "price_list_1": "ALHU8X_AUG26", "price_list_2": "Restoration/Service/Remodel", "estimate_name": "KENNETH_D_WINTER", "claim_rep_business_1": "14945 E Limestone Rd ste H", "claim_rep_business_2": "Harvest, AL 35749", "claim_rep_phone": "(256) 233-3728", "estimator_phone": "(256) 233-3728", "estimator_business_1": "14945 E Limestone Rd ste H", "estimator_business_2": "Harvest, AL 35749", "claim_number": "H0001264708", "policy_number": "19002459507-AMI-HO5", "type_of_loss": "Weather", "date_of_loss": "6/2/2026", "date_received": "8/25/2026", "date_entered": "8/25/2026 11:20 AM", "property": "6019 PEACH POND WAY SE, OWENS CROSS ROADS, AL 35763-2503", "job": "77-3001", "claim": "H0001264708", "endpoint": "https://script.google.com/macros/s/AKfycbwfFtu66WgrVre0CVfaZvd5EJEB3IfHgDt8WH6MMSC9cLPY5T_zYUU55dZyHphMIeCY/exec"};
+
+      var LOGO = "iVBORw0KGgoAAAANSUhEUgAAANwAAAD8CAIAAACTlF3gAAAjiUlEQVR42u2dZ3hURduAnzl1N5uQAIFA6ARQAaP0EkAEFOkl9BZASKgBC/oqiqh8+oqvDRQVgiBNaqQoxYJUaQKCglGatEACpG87bb4f2WSTsDm7Szak8NzXXpeGPWXOnHtmnpk9M4dQSgFBShMMZgFS2uCy/6MlJqqHD2N2ICUI27YtExrqlFI9eNAyZAjmC1KC+K1fzwwenKf5ZlnMFKSkq0oWY0oEOzoIglIiKCWCoJQISokgKCWCUiIISokgKCWCUiIISomglAiCUiIoJYKglAiCUiIoJYKglAhKiSAoJYJSIghKiaCUCIJSIghKiaCUCIJSIiglgqCUCEqJICglgqCUCEqJICglglIiCEqJoJQIglIiKCWCoJQIglIiKCWCoJQISokgKCWCUiIISokgKCWCUiIISomglAiCUiIoJYKglAhKiSAoJYKglAhKiSAoJYJSIghKiaCUCIJSIiglgqCUCIJSIiglgqCUCEqJICglglIiCEqJICglglIiCEqJoJQIglIiKCWCoJQISokgKCWCoJQISokgKCWCUiIISomglAiCUiIISomglAiCUiIoJYKglAhKiSAoJYJSIghKiSAoJYJSIghKiaCUCIJSIiglgqCUCIJSIiglgqCUCEqJICglglIiCEqJoJQIglIiCEqJoJQIglIiKCWCoJQISokgKCWCoJQISokgKCWCUiIISomglAiCUiIoJYKglAiCUiIoJYKglAhKiSAoJYJSIghKiSAoJYJSIghKiaCUCIJSIiglgqCUCEqJICglgqCUCEqJICglglIiCEqJPBBwZS7FFAAACN66Es3/Yr0FZUlKJqgK83gzYuAYsTIJrgLVAtjQMPX347Yln/g6V3hQZK/3YjnQVKD0ns7IAUNAVu6XWV4nkhgD2JZtiIln+IpQuSqpFsBWq6vdTrLOe9Xj/GFA1cqblIY33uFnTih4pZefktat1DJSfHYaQgzDo7noZ0GRwMN7RwB4Qft5r+Xt/4Biv5fyVrma8b33ScumIMnFno8qWMeMV//63audxAmTxQXvFfxXiySvXqFcStC7tAqVxegpbLeniYkDCdTDh+1ffqZcOU/KgZRsjbr86MEufKhTje87yL5qsQ9rEfvG5UzbVvyUKC9u9L7fbIs/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";
+      var ENDPOINT = DATA.endpoint;
+      var person = DATA.person || "";
+      var job = DATA.job || "";
+
+      var app = document.getElementById("app");
+      var linkError = document.getElementById("linkError");
+      if (!person || !job) {
+        linkError.style.display = "block";
+        return;
+      }
+      app.hidden = false;
+
+      function F(key) { return DATA[key] || ""; }
+      var claimNumber = F("claim_number") || F("claim");
+
+      function esc(value) {
+        return String(value == null ? "" : value).replace(/[&<>'"]/g, function (ch) {
+          return {"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch];
+        });
+      }
+
+      /* ---------- Form sheet builders (Alfa scope pages 1-2) ---------- */
+      /* Coordinates mirror the Alfa Xactimate original: pt x 4/3 = px on
+         the 816x1056 letter canvas. */
+      function T(base) { return Math.round((base - 10.3) * 4 / 3); }
+      function TB(base) { return Math.round((base - 11.8) * 4 / 3); }
+      function el(left, top, inner, cls, extra) {
+        return '<div class="el ' + (cls || "") + '" style="left:' + left + 'px;top:' + top + 'px;' + (extra || "") + '">' + inner + '</div>';
+      }
+      function rowL(base, label, value) {
+        return el(0, T(base), esc(label), "lbl", "width:150px;") +
+               el(170, T(base), esc(value), "val");
+      }
+      function rowR(base, label, value) {
+        return el(431, T(base), esc(label), "lbl", "width:150px;") +
+               el(595, T(base), esc(value), "val");
+      }
+      function rowMid(base, label, value) {
+        return el(312, T(base), esc(label), "lbl", "width:150px;") +
+               el(482, T(base), esc(value), "val");
+      }
+      function headerHTML() {
+        return el(48, 45, '<img src="data:image/png;base64,' + LOGO + '" style="width:44px;height:51px;display:block" alt="">') +
+               el(138, 52, "ALFA Insurance", "hdr-title") +
+               el(138, 89, "", "", "width:630px;border-top:1px solid #000;height:0;");
+      }
+
+      function sheet1HTML() {
+        var h = headerHTML();
+        h += rowL(122.23, "Insured:", person) + rowR(122.23, "Cell:", F("cell"));
+        h += rowL(135.10, "Property:", F("property_1") || F("property"));
+        h += rowR(138.73, "E-mail:", F("email"));
+        h += el(170, T(148.60), esc(F("property_2")), "val");
+        h += rowL(162.17, "Home:", F("home_1"));
+        h += el(170, T(175.67), esc(F("home_2")), "val");
+        h += rowL(207.23, "Claim Rep.:", F("claim_rep")) + rowR(207.23, "Business:", F("claim_rep_business_1"));
+        h += el(595, T(227.76), esc(F("claim_rep_business_2")), "val");
+        h += rowR(248.62, "Business:", F("claim_rep_phone"));
+        h += rowR(267.11, "E-mail:", F("claim_rep_email"));
+        h += rowL(303.60, "Estimator:", F("estimator")) + rowR(303.60, "Business:", F("estimator_phone"));
+        h += rowL(316.98, "Business:", F("estimator_business_1")) + rowR(317.10, "E-mail:", F("estimator_email"));
+        h += el(170, T(330.48), esc(F("estimator_business_2")), "val");
+        var b = TB(361.52);
+        h += el(0, b, "Claim Number:", "bold-lbl", "width:146px;") + el(150, b, esc(claimNumber), "bold-val", "width:162px;");
+        h += el(318, b, "Policy Number:", "bold-lbl", "width:160px;") + el(482, b, esc(F("policy_number")), "bold-val", "width:78px;");
+        h += el(566, b, "Type of Loss:", "bold-lbl", "width:110px;") + el(680, b, esc(F("type_of_loss")), "bold-val", "width:132px;");
+        h += rowL(391.33, "Date of Loss:", F("date_of_loss")) + rowMid(391.33, "Date Received:", F("date_received"));
+        h += rowL(404.95, "Date Inspected:", F("date_inspected")) + rowMid(404.95, "Date Entered:", F("date_entered"));
+        h += rowL(431.02, "Price List:", F("price_list_1"));
+        h += el(170, T(444.52), esc(F("price_list_2")), "val");
+        h += rowL(456.86, "Estimate:", F("estimate_name"));
+        return h;
+      }
+
+      var LETTER =
+        '<p>Dear Policyholder:</p>' +
+        '<p>Your insurance policy includes REPLACEMENT COST COVERAGE. This REPLACEMENT COST applies to your dwelling and other covered structures. This coverage provides for the full cost of repairs or replacement of your damaged property without a deduction for depreciation. However, the repairs must be completed with like kind and quality of materials before the full cost is payable.</p>' +
+        '<p>After the damaged property has been repaired or replaced, we will pay you the additional claim amount which is either the amount of recoverable depreciation (listed on the summary page of this estimate), or the amount actually spent to repair or replace your property in excess of the actual cash value of the loss (listed on the summary page of this estimate), whichever is less, up to your policy limit.</p>' +
+        '<p>Only the "recoverable" depreciation listed on this estimate will be considered for additional payment. Anything listed as "non-recoverable" depreciation is not subject to additional payment.</p>' +
+        '<p class="bold gap-lg">ONCE THE REPAIRS ARE COMPLETED, SIGN BELOW AND RETURN THE DOCUMENT TO US. UPON RECEIPT OF THE SIGNED DOCUMENT, WE WILL PAY THE ADDITIONAL CLAIM AMOUNT. REQUEST FOR PAYMENT OF ADDITIONAL CLAIM AMOUNT MUST BE ACCOMPANIED BY PAID BILLS, RECEIPTS AND/OR CANCELLED CHECKS. ALL OTHER PROVISIONS OF THIS POLICY APPLY.</p>' +
+        '<p>YOUR SIGNATURE BELOW IS YOUR AFFIDAVIT THAT THE WORK AS SPECIFIED IN THE ESTIMATE OF REPAIR OR REPLACEMENT HAS BEEN COMPLETED.</p>';
+
+      var signatureMode = "draw";
+      var drawnSignature = "";
+      var dateInput = document.getElementById("signDate");
+      var typedName = document.getElementById("typedName");
+
+      function formatDate(iso) {
+        if (!iso) return "";
+        var parts = iso.split("-");
+        return Number(parts[1]) + "/" + Number(parts[2]) + "/" + parts[0];
+      }
+      function sigHTML() {
+        if (signatureMode === "draw" && drawnSignature) {
+          return '<img src="' + drawnSignature + '" alt="">';
+        }
+        if (signatureMode === "type" && typedName.value.trim()) {
+          return '<div class="typed-sig">' + esc(typedName.value.trim()) + '</div>';
+        }
+        return "";
+      }
+      function sheet2HTML() {
+        var sigBlock =
+          '<div class="sigblock"><div class="sigzone">' + sigHTML() +
+          '<div class="sigdate">' + esc(formatDate(dateInput.value)) + '</div></div>' +
+          '<div class="sigline"></div>' +
+          '<div class="siglabels"><span>Signature</span><span class="dt">Date</span></div></div>';
+        return headerHTML() +
+          '<div class="letter">' + LETTER + sigBlock + '</div>' +
+          '<div class="sheet-footer"><span>' + esc(F("estimate_name")) + '</span><span>Page:&nbsp;&nbsp;2</span></div>';
+      }
+
+      function renderSheets() {
+        var s1 = sheet1HTML();
+        var s2 = sheet2HTML();
+        document.getElementById("screenSheet1").innerHTML = s1;
+        document.getElementById("pdfSheet1").innerHTML = s1;
+        document.getElementById("screenSheet2").innerHTML = s2;
+        document.getElementById("pdfSheet2").innerHTML = s2;
+        document.querySelectorAll(".typed-sig").forEach(function (el) {
+          el.style.transform = "";
+          var w = el.scrollWidth;
+          if (w > 176) el.style.transform = "scale(" + (176 / w).toFixed(3) + ")";
+        });
+        fitBoldRow();
+      }
+
+      /* The Claim/Policy/Type row is the one tight row on the cover sheet:
+         values run right up to the next label, and on machines whose serif
+         font renders wider than Times New Roman the claim number can touch
+         "Policy Number:". Measure the actual rendered text widths with a
+         canvas (which uses the viewer's own font) and step the whole bold
+         row's font size down until every value clears the next label. On a
+         standard Times system nothing changes. */
+      var boldCtx = document.createElement("canvas").getContext("2d");
+      function boldTextW(text, size) {
+        boldCtx.font = "700 " + size + "px \"Times New Roman\", Times, serif";
+        return boldCtx.measureText(text).width;
+      }
+      function fitBoldRow() {
+        var size = 15.33;
+        while (size > 11) {
+          var fits =
+            boldTextW("Claim Number:", size) <= 146 &&
+            150 + boldTextW(claimNumber, size) <= 312 &&
+            boldTextW("Policy Number:", size) <= 160 &&
+            482 + boldTextW(F("policy_number"), size) <= 560 &&
+            boldTextW("Type of Loss:", size) <= 110 &&
+            680 + boldTextW(F("type_of_loss"), size) <= 812;
+          if (fits) break;
+          size -= 0.5;
+        }
+        if (size < 15.33) {
+          document.querySelectorAll(".bold-lbl, .bold-val").forEach(function (n) {
+            n.style.fontSize = size.toFixed(2) + "px";
+          });
+        }
+      }
+      function fitSheets() {
+        [["wrap1", "screenSheet1"], ["wrap2", "screenSheet2"]].forEach(function (pair) {
+          var wrap = document.getElementById(pair[0]);
+          var sheet = document.getElementById(pair[1]);
+          var s = wrap.clientWidth / 816;
+          sheet.style.transform = "scale(" + s + ")";
+          wrap.style.height = (1056 * s) + "px";
+        });
+      }
+      window.addEventListener("resize", fitSheets);
+
+      document.getElementById("printedName").textContent = person;
+
+      var now = new Date();
+      var localToday = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+      dateInput.value = localToday;
+      dateInput.addEventListener("change", renderSheets);
+
+      /* ---------- Signature controls ---------- */
+      var typedPreview = document.getElementById("typedPreview");
+      var drawTab = document.getElementById("drawTab");
+      var typeTab = document.getElementById("typeTab");
+      var drawPanel = document.getElementById("drawPanel");
+      var typePanel = document.getElementById("typePanel");
+
+      function setMode(mode) {
+        signatureMode = mode;
+        var drawing = mode === "draw";
+        drawTab.setAttribute("aria-selected", String(drawing));
+        typeTab.setAttribute("aria-selected", String(!drawing));
+        drawPanel.classList.toggle("active", drawing);
+        typePanel.classList.toggle("active", !drawing);
+        document.getElementById("validation").textContent = "";
+        renderSheets();
+        if (!drawing) typedName.focus();
+      }
+      drawTab.addEventListener("click", function () { setMode("draw"); });
+      typeTab.addEventListener("click", function () { setMode("type"); });
+      typedName.addEventListener("input", function () {
+        typedPreview.textContent = typedName.value.trim() || "Your signature";
+        renderSheets();
+      });
+
+      var modal = document.getElementById("padModal");
+      var canvas = document.getElementById("signaturePad");
+      var ctx = canvas.getContext("2d");
+      var drawing = false;
+      var moved = false;
+      var undoStack = [];
+      var lastPoint = null;
+      var savedBeforeOpen = "";
+
+      function sizeCanvas() {
+        var rect = canvas.getBoundingClientRect();
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var previous = canvas.width ? canvas.toDataURL("image/png") : "";
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#15201b";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, rect.width, rect.height);
+        if (savedBeforeOpen || previous) loadCanvasImage(savedBeforeOpen || previous);
+      }
+      function loadCanvasImage(src) {
+        if (!src) return;
+        var image = new Image();
+        image.onload = function () {
+          var rect = canvas.getBoundingClientRect();
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, rect.width, rect.height);
+          ctx.drawImage(image, 0, 0, rect.width, rect.height);
+        };
+        image.src = src;
+      }
+      function pointFromEvent(event) {
+        var rect = canvas.getBoundingClientRect();
+        return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      }
+      function canvasSnapshot() { return canvas.toDataURL("image/png"); }
+      canvas.addEventListener("pointerdown", function (event) {
+        event.preventDefault();
+        canvas.setPointerCapture(event.pointerId);
+        undoStack.push(canvasSnapshot());
+        if (undoStack.length > 20) undoStack.shift();
+        drawing = true;
+        moved = false;
+        lastPoint = pointFromEvent(event);
+      });
+      canvas.addEventListener("pointermove", function (event) {
+        if (!drawing) return;
+        event.preventDefault();
+        var point = pointFromEvent(event);
+        ctx.beginPath();
+        ctx.moveTo(lastPoint.x, lastPoint.y);
+        ctx.lineTo(point.x, point.y);
+        ctx.stroke();
+        lastPoint = point;
+        moved = true;
+      });
+      function stopDrawing(event) {
+        if (!drawing) return;
+        if (!moved && lastPoint) {
+          ctx.beginPath();
+          ctx.arc(lastPoint.x, lastPoint.y, 1.5, 0, Math.PI * 2);
+          ctx.fillStyle = "#15201b";
+          ctx.fill();
+        }
+        drawing = false;
+        if (event && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      }
+      canvas.addEventListener("pointerup", stopDrawing);
+      canvas.addEventListener("pointercancel", stopDrawing);
+
+      function openPad() {
+        savedBeforeOpen = drawnSignature;
+        undoStack = [];
+        modal.classList.add("open");
+        document.body.style.overflow = "hidden";
+        requestAnimationFrame(function () { sizeCanvas(); document.getElementById("donePad").focus(); });
+      }
+      function closePad() {
+        modal.classList.remove("open");
+        document.body.style.overflow = "";
+        document.getElementById("openPad").focus();
+      }
+      document.getElementById("openPad").addEventListener("click", openPad);
+      document.getElementById("closePad").addEventListener("click", closePad);
+      modal.addEventListener("click", function (event) { if (event.target === modal) closePad(); });
+      document.addEventListener("keydown", function (event) { if (event.key === "Escape" && modal.classList.contains("open")) closePad(); });
+      document.getElementById("clearPad").addEventListener("click", function () {
+        undoStack.push(canvasSnapshot());
+        var rect = canvas.getBoundingClientRect();
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, rect.width, rect.height);
+      });
+      document.getElementById("undoPad").addEventListener("click", function () {
+        if (undoStack.length) loadCanvasImage(undoStack.pop());
+      });
+      document.getElementById("donePad").addEventListener("click", function () {
+        drawnSignature = canvasSnapshot();
+        var preview = document.getElementById("drawnPreview");
+        preview.src = drawnSignature;
+        preview.hidden = false;
+        document.getElementById("drawPrompt").hidden = true;
+        closePad();
+        renderSheets();
+      });
+      window.addEventListener("resize", function () { if (modal.classList.contains("open")) sizeCanvas(); });
+
+      renderSheets();
+      fitSheets();
+      requestAnimationFrame(fitSheets);
+
+      /* ---------- Validate + build the 2-page PDF + send ---------- */
+      function validate() {
+        var message = "";
+        if (signatureMode === "draw" && !drawnSignature) message = "Please add your signature.";
+        if (signatureMode === "type" && !typedName.value.trim()) message = "Please type your signature.";
+        if (!dateInput.value) message = "Please enter the signing date.";
+        if (!document.getElementById("consent").checked) message = "Please confirm the statement before sending.";
+        document.getElementById("validation").textContent = message;
+        return !message;
+      }
+
+      /* Guard: the signature must actually be visible in the rendered page-2
+         image before anything is sent. Catches the case where the signer
+         completed the form but the signature didn't make it into the PDF
+         (e.g. a render failure), which would otherwise arrive unsigned. */
+      function sigZoneHasInk(canvas, scale) {
+        try {
+          var sheet = document.getElementById("pdfSheet2");
+          var zone = sheet.querySelector(".sigzone");
+          if (!zone) return false;
+          var sr = sheet.getBoundingClientRect();
+          var zr = zone.getBoundingClientRect();
+          // Signature lives in the left ~190px of the sigzone (image or
+          // typed script); the date sits to the right, so exclude it.
+          var sx = Math.max(0, Math.floor((zr.left - sr.left) * scale));
+          var sy = Math.max(0, Math.floor((zr.top - sr.top) * scale));
+          var sw = Math.floor(190 * scale);
+          var sh = Math.floor(zr.height * scale);
+          if (sw <= 0 || sh <= 0) return false;
+          if (sx + sw > canvas.width) sw = canvas.width - sx;
+          if (sy + sh > canvas.height) sh = canvas.height - sy;
+          var d = canvas.getContext("2d").getImageData(sx, sy, sw, sh).data;
+          var dark = 0;
+          for (var i = 0; i < d.length; i += 16) {
+            if (d[i] < 180 || d[i + 1] < 180 || d[i + 2] < 180) dark++;
+            if (dark > 150) return true;
+          }
+          return false;
+        } catch (e) { return false; }
+      }
+
+      document.getElementById("sendButton").addEventListener("click", async function () {
+        var button = this;
+        var status = document.getElementById("status");
+        status.className = "status";
+        status.textContent = "";
+        if (!validate()) return;
+        if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
+          status.className = "status failure show";
+          status.textContent = "The document tools did not load. Please check your connection and try again.";
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = "Preparing your statement…";
+        renderSheets();
+        try {
+          if (document.fonts && document.fonts.ready) await document.fonts.ready;
+          var opts = {
+            scale: 2, width: 816, height: 1056,
+            windowWidth: 816, windowHeight: 1056,
+            backgroundColor: "#ffffff", useCORS: true, logging: false
+          };
+          var shot1 = await window.html2canvas(document.getElementById("pdfSheet1"), opts);
+          var shot2 = await window.html2canvas(document.getElementById("pdfSheet2"), opts);
+          if (!sigZoneHasInk(shot2, opts.scale)) {
+            status.className = "status failure show";
+            status.textContent = "The signature didn't come through clearly. Please re-add your signature and try again.";
+            button.disabled = false;
+            button.textContent = "Finish & Send";
+            return;
+          }
+          var pdf = new window.jspdf.jsPDF({ orientation: "portrait", unit: "pt", format: "letter", compress: true });
+          pdf.setProperties({ title: "Signed holdback - " + person + " - " + job, subject: "Signed Alfa completion statement", author: person, creator: "RoofLife" });
+          pdf.addImage(shot1.toDataURL("image/jpeg", .92), "JPEG", 0, 0, 612, 792, undefined, "FAST");
+          pdf.addPage();
+          pdf.addImage(shot2.toDataURL("image/jpeg", .92), "JPEG", 0, 0, 612, 792, undefined, "FAST");
+          var dataUri = pdf.output("datauristring");
+          var pdfBase64 = dataUri.substring(dataUri.indexOf(",") + 1);
+          var payload = {
+            pdfBase64: pdfBase64,
+            filename: "Signed holdback - " + person + " - " + job + ".pdf",
+            subject: "Signed holdback — " + person + " " + job,
+            body: "Signed Alfa completion statement attached for " + person + " (job " + job + ")."
+          };
+
+          button.textContent = "Sending…";
+          await fetch(ENDPOINT, {
+            method: "POST",
+            mode: "no-cors",
+            credentials: "omit",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(payload)
+          });
+
+          status.className = "status success show";
+          status.textContent = "Sent! Your signed completion statement has been delivered to RoofLife.";
+          button.textContent = "Sent";
+          button.disabled = true;
+          status.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch (error) {
+          status.className = "status failure show";
+          status.textContent = "We couldn't send the statement. Please check your connection and try again.";
+          button.disabled = false;
+          button.textContent = "Finish & Send";
+        }
+      });
+    }());
+  </script>
+</body>
+</html>
